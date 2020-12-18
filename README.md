@@ -1,2 +1,2 @@
 # CoinbaseScripts
-Utilities against Coinbase API
+Utilities for Coinbase API
