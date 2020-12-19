@@ -2,8 +2,19 @@
 coinbaseApiKey.json
 gdaxApiKey.json
 
-
-
+# Dependencies
+.vscode/
+bin/
+bson/
+cbpro*/
+gdax/
+gridfs/
+pymongo*/
+requests*/
+six-*/
+sortedcontainers*/
+websocket/
+six.py
 
 
 
