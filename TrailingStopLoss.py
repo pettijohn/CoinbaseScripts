@@ -1,5 +1,5 @@
 import cbpro
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN
 import json
 import sys
 
@@ -36,14 +36,16 @@ auth_client = cbpro.AuthenticatedClient(keys['apiKey'], keys['apiSecret'], keys[
 
 # Identify all accounts with nonzero balance and prepare to liquidate them all 
 accounts = filter(lambda a: Decimal(a['balance']) > 0 and a['currency'] != 'USD' and a['currency'] != 'BAT', auth_client.get_accounts())
-totalLiquidation = Decimal('0.0')
+totalLiquidation     = Decimal('0.0')
+totalLiquidationLast = Decimal('0.0')
+totalLiquidationMax  = Decimal('0.0')
 
 # For each account
 for account in accounts:
     # Prepare symbols & get balance 
     crypto = account['currency']
     product = crypto + '-USD'
-    totalCryptoToSell = Decimal(account['balance'])
+    totalCryptoToSell = Decimal(account['balance']).quantize(Decimal('0.00000001'), rounding=ROUND_DOWN)
 
     # Get 24 hour stats e.g. high, low, last
     # https://api.pro.coinbase.com/products/BTC-USD/stats
@@ -52,15 +54,17 @@ for account in accounts:
 
     # Trailing Stop Loss rule, aka Bubble Chaser Liquidator
     last                = Decimal(stats['last'])
-    high                = Decimal(stats['high'])                     # e.g. 24000
-    stopTriggerPercent  = Decimal('0.875')
-    limitPercent        = Decimal('0.850')
-    p = Decimal('0.01')                                              # Precision, round to 0.01 for USD
+    high                = Decimal(stats['high'])                    # e.g. 24000
+    stopTriggerPercent  = Decimal('0.850')
+    limitPercent        = Decimal('0.830')
+    p = Decimal('0.01')                                             # Precision, round to 0.01 for USD
     # When the last trade price is below this amount,
-    targetStopUSD       = (high * stopTriggerPercent).quantize(p)    # e.g. 21000 
+    targetStopUSD       = (high * stopTriggerPercent).quantize(p)   # e.g. 21000 
     # Create a sell order with the price above this amount (if zero, you'd lose it all in a flash crash)
-    targetLimitUSD      = (high * limitPercent).quantize(p)          # e.g. 20400
-    potentialLiquidationAmount   = (totalCryptoToSell * targetLimitUSD).quantize(p)
+    targetLimitUSD      = (high * limitPercent).quantize(p)         # e.g. 20400
+    potentialLiquidationAmount  = (totalCryptoToSell * targetLimitUSD).quantize(p)
+    totalLiquidationLast        = totalLiquidationLast + (totalCryptoToSell * last).quantize(p)
+    totalLiquidationMax         = totalLiquidationMax + (totalCryptoToSell * high).quantize(p)
 
     print("=== Bubble Chaser Liquidator Settings: ===")
     print("===              {0}               ===".format(product))
@@ -117,13 +121,15 @@ for account in accounts:
         print(jsonToPost)
 
         if reallyPlaceOrder:
-            # orderResult = auth_client.place_order(product, 'sell', 'limit', stop='loss', 
-            #    stop_price=str(targetStopUSD), price=str(targetLimitUSD), size=str(totalCryptoToSell), time_in_force='GTC')
-            # print("Order placed:")
-            # print(json.dumps(orderResult, indent=2))    
+            orderResult = auth_client.place_order(product, 'sell', 'limit', stop='loss', 
+               stop_price=str(targetStopUSD), price=str(targetLimitUSD), size=str(totalCryptoToSell), time_in_force='GTC')
+            print("Order placed:")
+            print(json.dumps(orderResult, indent=2))    
             pass
 
 print("=== === === === ===")
 print("Total to liquidate:")
-print("At limit  {0}".format(totalLiquidation))
+print("At limit  {0}".format(totalLiquidation.quantize(p)))
 print("At stop   {0}".format((totalLiquidation * (stopTriggerPercent / limitPercent)).quantize(p)))
+print("At last   {0}".format(totalLiquidationLast.quantize(p)))
+print("At high   {0}".format(totalLiquidationMax.quantize(p)))
