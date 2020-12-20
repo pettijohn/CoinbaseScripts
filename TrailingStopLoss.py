@@ -22,11 +22,11 @@ def lambdaHandler(event, context):
     # Sandbox or prod? 
     if event['stage'] == "prod":
         print ("DANGER - USING PROD")
-        env = 'prod'
+        stage = 'prod'
         apiEndpoint = "https://api.pro.coinbase.com"
     else:
         print ("Using SANDBOX API endpoint")
-        env = 'sandbox'
+        stage = 'sandbox'
         apiEndpoint = "https://api-public.sandbox.pro.coinbase.com"
 
     if event['order'] == "place":
@@ -38,11 +38,11 @@ def lambdaHandler(event, context):
 
     # Load API key
     with open('gdaxApiKey.json') as keys_file:
-        keys = json.load(keys_file)[env]
+        keys = json.load(keys_file)[stage]
     auth_client = cbpro.AuthenticatedClient(keys['apiKey'], keys['apiSecret'], keys['passphrase'], api_url=apiEndpoint)
 
-    # Identify all accounts with nonzero balance and prepare to liquidate them all 
-    accounts = filter(lambda a: Decimal(a['balance']) > 1 and a['currency'] != 'USD' and a['currency'] != 'BAT', auth_client.get_accounts())
+    # Identify all accounts with nontrivial balance and prepare to liquidate them all 
+    accounts = filter(lambda a: Decimal(a['balance']) > 1 and a['currency'] != 'USD', auth_client.get_accounts())
     totalLiquidation     = Decimal('0.0')
     totalLiquidationLast = Decimal('0.0')
     totalLiquidationMax  = Decimal('0.0')
@@ -52,6 +52,8 @@ def lambdaHandler(event, context):
         # Prepare symbols & get balance 
         crypto = account['currency']
         product = crypto + '-USD'
+        # Round down to precision supported by API. Without specifying down, sometimes it will round up, 
+        # which will cause an insufficient funds error 
         totalCryptoToSell = Decimal(account['balance']).quantize(Decimal('0.00000001'), rounding=ROUND_DOWN)
 
         # Get 24 hour stats e.g. high, low, last
