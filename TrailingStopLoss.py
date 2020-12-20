@@ -13,6 +13,12 @@ def prepOrder(product_id, side, order_type, **kwargs):
     return json.dumps(params, indent=2)
 
 def lambdaHandler(event, context):
+    # Validate @event is correct
+    if not ('stage' in event and 'order' in event and 'stopTriggerPercent' in event and 'limitPercent' in event):
+        print("ERROR - event input is incomplete.")
+        return False
+        quit()
+
     # Sandbox or prod? 
     if event['stage'] == "prod":
         print ("DANGER - USING PROD")
@@ -56,8 +62,8 @@ def lambdaHandler(event, context):
         # Trailing Stop Loss rule, aka Bubble Chaser Liquidator
         last                = Decimal(stats['last'])
         high                = Decimal(stats['high'])                    # e.g. 24000
-        stopTriggerPercent  = Decimal('0.850')
-        limitPercent        = Decimal('0.830')
+        stopTriggerPercent  = Decimal(event['stopTriggerPercent'])
+        limitPercent        = Decimal(event['limitPercent'])
         p = Decimal('0.01')                                             # Precision, round to 0.01 for USD
         # When the last trade price is below this amount,
         targetStopUSD       = (high * stopTriggerPercent).quantize(p)   # e.g. 21000 
@@ -71,8 +77,8 @@ def lambdaHandler(event, context):
         print("===              {0}               ===".format(product))
         print("24hr high was            {0}".format(high))
         print("Last price was           {0}".format(last))
-        print("Stop will be             {0}".format(targetStopUSD))
-        print("With limit of            {0}".format(targetLimitUSD))
+        print("Stop will be             {0} @ {1}".format(targetStopUSD, stopTriggerPercent))
+        print("With limit of            {0} @ {1}".format(targetLimitUSD, limitPercent))
         
 
         if last <= targetStopUSD:
