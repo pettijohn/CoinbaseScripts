@@ -1,6 +1,7 @@
 # Repository-specific
 coinbaseApiKey.json
 gdaxApiKey.json
+LambdaDeployPackage.zip
 
 # Dependencies
 .vscode/
