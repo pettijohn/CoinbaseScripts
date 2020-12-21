@@ -42,7 +42,7 @@ def lambdaHandler(event, context):
     auth_client = cbpro.AuthenticatedClient(keys['apiKey'], keys['apiSecret'], keys['passphrase'], api_url=apiEndpoint)
 
     # Identify all accounts with nontrivial balance and prepare to liquidate them all 
-    accounts = filter(lambda a: Decimal(a['balance']) > 1 and a['currency'] != 'USD', auth_client.get_accounts())
+    accounts = filter(lambda a: Decimal(a['balance']) > 1 and (a['currency'] == 'ETH' or a['currency'] == 'BTC'), auth_client.get_accounts())
     totalLiquidation     = Decimal('0.0')
     totalLiquidationLast = Decimal('0.0')
     totalLiquidationMax  = Decimal('0.0')
