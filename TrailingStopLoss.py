@@ -75,10 +75,10 @@ def lambdaHandler(event, context):
         totalLiquidationLast        = totalLiquidationLast + (totalCryptoToSell * last).quantize(p)
         totalLiquidationMax         = totalLiquidationMax + (totalCryptoToSell * high).quantize(p)
 
-        print("=== Bubble Chaser Liquidator Settings: ===")
-        print("===              {0}               ===".format(product))
+        print("=== Bubble Chaser Liquidator Settings ===")
+        print("===              {0}              ===".format(product))
         print("24hr high was            {0}".format(high))
-        print("Last price was           {0}".format(last))
+        print("Last price was           {0} @ {1}".format(last, (last/high).quantize(p)))
         print("Stop will be             {0} @ {1}".format(targetStopUSD, stopTriggerPercent))
         print("With limit of            {0} @ {1}".format(targetLimitUSD, limitPercent))
         
@@ -91,8 +91,8 @@ def lambdaHandler(event, context):
         placeOrder = False
         if len(orders) > 1:
             # Error state
-            print("There should be zero or one orders for {0}. Actual: {1}".format(product, len(orders)))
-            quit()
+            print("ABORT: There should be zero or one orders for {0}. Actual: {1}".format(product, len(orders)))
+            continue
         if len(orders) == 1:
             # Evaluate if the stop needs to move up
             # '{"id": "c36b3ba0-12cf-481c-a08d-8534e7523149", "price": "18000.00000000", "size": "1.00000000", "product_id": "BTC-USD", "profile_id": "27e860da-56f9-45a9-85dd-6ce3527a51d6", "side": "sell", "type": "limit", "time_in_force": "GTC", "post_only": false, "created_at": "2020-12-19T19:30:39.035213Z", "fill_fees": "0.0000000000000000", "filled_size": "0.00000000", "executed_value": "0.0000000000000000", "status": "active", "settled": false, "stop": "loss", "stop_price": "20000.00000000"}'
