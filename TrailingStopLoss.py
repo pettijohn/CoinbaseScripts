@@ -1,5 +1,6 @@
 import cbpro
 from decimal import Decimal, ROUND_DOWN
+from functools import reduce
 import json
 import sys
 
@@ -13,11 +14,10 @@ def prepOrder(product_id, side, order_type, **kwargs):
     return json.dumps(params, indent=2)
 
 def lambdaHandler(event, context):
-    # Validate @event is correct
-    if not ('stage' in event and 'order' in event and 'stopTriggerPercent' in event and 'limitPercent' in event):
+    # Validate @event has all required keys
+    if not reduce((lambda p,k: p and (k in event)), ['stage', 'order', 'crypto', 'minBalance', 'amountToSell', 'stopTriggerPercent', 'limitPercent'], True):
         print("ERROR - event input is incomplete.")
         return False
-        quit()
 
     # Sandbox or prod? 
     if event['stage'] == "prod":
@@ -42,10 +42,13 @@ def lambdaHandler(event, context):
     auth_client = cbpro.AuthenticatedClient(keys['apiKey'], keys['apiSecret'], keys['passphrase'], api_url=apiEndpoint)
 
     # Identify all accounts with nontrivial balance and prepare to liquidate them all 
-    accounts = filter(lambda a: Decimal(a['balance']) > 1 and (a['currency'] == 'ETH' or a['currency'] == 'BTC'), auth_client.get_accounts())
+    accounts = filter(lambda a: Decimal(a['balance']) > Decimal(event['minBalance']) and (a['currency'] == event['crypto']), auth_client.get_accounts())
     totalLiquidation     = Decimal('0.0')
     totalLiquidationLast = Decimal('0.0')
     totalLiquidationMax  = Decimal('0.0')
+    p = Decimal('0.01')   # Precision, round to 0.01 for USD
+    stopTriggerPercent  = Decimal(event['stopTriggerPercent'])
+    limitPercent        = Decimal(event['limitPercent'])
 
     # For each account
     for account in accounts:
@@ -54,7 +57,7 @@ def lambdaHandler(event, context):
         product = crypto + '-USD'
         # Round down to precision supported by API. Without specifying down, sometimes it will round up, 
         # which will cause an insufficient funds error 
-        totalCryptoToSell = Decimal(account['balance']).quantize(Decimal('0.00000001'), rounding=ROUND_DOWN)
+        totalCryptoToSell = Decimal(event['amountToSell']) 
 
         # Get 24 hour stats e.g. high, low, last
         # https://api.pro.coinbase.com/products/BTC-USD/stats
@@ -64,9 +67,6 @@ def lambdaHandler(event, context):
         # Trailing Stop Loss rule, aka Bubble Chaser Liquidator
         last                = Decimal(stats['last'])
         high                = Decimal(stats['high'])                    # e.g. 24000
-        stopTriggerPercent  = Decimal(event['stopTriggerPercent'])
-        limitPercent        = Decimal(event['limitPercent'])
-        p = Decimal('0.01')                                             # Precision, round to 0.01 for USD
         # When the last trade price is below this amount,
         targetStopUSD       = (high * stopTriggerPercent).quantize(p)   # e.g. 21000 
         # Create a sell order with the price above this amount (if zero, you'd lose it all in a flash crash)
@@ -78,7 +78,7 @@ def lambdaHandler(event, context):
         print("=== Bubble Chaser Liquidator Settings ===")
         print("===              {0}              ===".format(product))
         print("24hr high was            {0}".format(high))
-        print("Last price was           {0} @ {1}".format(last, (last/high).quantize(p)))
+        print("Last price was           {0} @ {1}".format(last, (last/high).quantize(Decimal('0.001'))))
         print("Stop will be             {0} @ {1}".format(targetStopUSD, stopTriggerPercent))
         print("With limit of            {0} @ {1}".format(targetLimitUSD, limitPercent))
         
